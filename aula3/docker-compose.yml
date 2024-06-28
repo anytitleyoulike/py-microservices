@@ -53,6 +53,13 @@ services:
       - db-estoque
     networks:
       - fiap-store
+  estoque-3:
+    build: estoque/
+    hostname: estoque-3
+    depends_on:
+      - db-estoque
+    networks:
+      - fiap-store
 
   kong-migrations:
     image: "kong:3.3.0-ubuntu"
