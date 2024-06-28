@@ -41,8 +41,6 @@ services:
   estoque-1:
     build: estoque/
     hostname: estoque-1
-    ports:
-      - "8080:8080"
     depends_on:
       - db-estoque
     networks:

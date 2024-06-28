@@ -6,6 +6,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker, Session
 from requests import post
 import os
+
 # Configuração do SQLAlchemy
 DATABASE_URL = "mysql+mysqlconnector://user:password@db-estoque:3306/estoque"
 engine = create_engine(DATABASE_URL)
@@ -13,10 +14,10 @@ metadata = MetaData()
 
 # Criar tabela de estoque se não existir
 estoque = Table(
-   'estoque', metadata,
-   Column('sku', String(255), primary_key=True),
-   Column('em_estoque', Integer),
-   Column('reservado', Integer)
+    'estoque', metadata,
+    Column('sku', String(255), primary_key=True),
+    Column('em_estoque', Integer),
+    Column('reservado', Integer)
 )
 metadata.create_all(engine)
 
@@ -25,38 +26,45 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 app = FastAPI()
 
+
 def self_register():
     url = "http://kong:8001/upstreams/estoque/targets"
     payload = {
         "target": os.environ['HOSTNAME'] + ":8080",
         "weight": 10,
-        "tags": [ "estoque" ]
+        "tags": ["estoque"]
     }
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
-    response = post(url, json=payload, headers=headers )
+    response = post(url, json=payload, headers=headers)
     return response
+
 
 status_register = self_register()
 print(status_register)
+
 
 class NovoProduto(BaseModel):
     sku: str
     em_estoque: int
     reservado: int = 0
 
+
 class Produto(BaseModel):
     em_estoque: int
     reservado: int = 0
+
 
 class OperacaoEstoque(BaseModel):
     sku: str
     quantidade: int
 
+
 class OperacoesEstoque(BaseModel):
     operacoes: List[OperacaoEstoque]
+
 
 @app.post("/estoque")
 async def criar_produto(produto: NovoProduto):
@@ -81,6 +89,7 @@ async def criar_produto(produto: NovoProduto):
         # Fechar a sessão
         session.close()
 
+
 @app.get("/estoque/{sku}")
 async def obter_estoque(sku: str):
     query = select(estoque).where(estoque.columns.sku == sku)
@@ -95,6 +104,7 @@ async def obter_estoque(sku: str):
             return Produto(**result_dict)  # Passar o dicionário para Produto
         except NoResultFound:
             raise HTTPException(status_code=404, detail="Produto não encontrado")
+
 
 @app.put("/estoque/{sku}")
 async def atualizar_produto(sku: str, produto: Produto):
@@ -113,6 +123,7 @@ async def atualizar_produto(sku: str, produto: Produto):
         raise HTTPException(status_code=400, detail=f"Erro ao atualizar estoque do produto: {e}")
     finally:
         session.close()
+
 
 @app.post("/estoque/reserva")
 async def reservar_estoque(operacoes: OperacoesEstoque):
@@ -134,6 +145,7 @@ async def reservar_estoque(operacoes: OperacoesEstoque):
     finally:
         session.close()
 
+
 @app.post("/estoque/debito")
 async def debitar_estoque(operacoes: OperacoesEstoque):
     session = SessionLocal()
@@ -142,7 +154,8 @@ async def debitar_estoque(operacoes: OperacoesEstoque):
             query = select(estoque).where(estoque.columns.sku == operacao.sku)
             produto = session.execute(query).fetchone()
             if operacao.quantidade > produto.reservado:
-                raise HTTPException(status_code=400, detail=f"Estoque reservado insuficiente para debitar do SKU {operacao.sku}")
+                raise HTTPException(status_code=400,
+                                    detail=f"Estoque reservado insuficiente para debitar do SKU {operacao.sku}")
             update_query = update(estoque).where(estoque.columns.sku == operacao.sku).values(
                 reservado=produto.reservado - operacao.quantidade)
             session.execute(update_query)
